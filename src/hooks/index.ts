@@ -1,2 +1,1 @@
-// Custom hooks exports
-export {};
+export * from './useAuth';

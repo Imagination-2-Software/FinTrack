@@ -1,2 +1,3 @@
 # Investments Feature Module
-Portfolio holdings, asset tracking (equities, mutual funds, crypto, cash), and transaction logging will be implemented here.
+
+Provides holding creation, viewing, permitted metadata updates, deletion, manual price entry, separate INR/USD calculations, and an append-only BUY/SELL transaction ledger. Position quantities and average purchase prices are changed through the atomic database transaction RPC.

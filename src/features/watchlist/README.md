@@ -1,2 +1,3 @@
 # Watchlist Feature Module
-Asset price monitoring, target alerts, and custom investor watchlists will be implemented here.
+
+Provides user-owned asset entries with manual prices, search, asset-type filtering, sorting, and removal. The watchlist does not fetch live prices or currently store a currency.

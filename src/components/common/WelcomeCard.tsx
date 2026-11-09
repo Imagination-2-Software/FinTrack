@@ -20,7 +20,7 @@ export const WelcomeCard: React.FC = () => {
         <div className="relative z-10 max-w-3xl">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 text-xs font-semibold mb-6">
             <Zap className="h-3.5 w-3.5 text-brand-400" />
-            Phase 1 Scaffolding Ready
+            Phase 3 Authentication Ready
           </div>
 
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight">
@@ -125,7 +125,7 @@ export const WelcomeCard: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-4 rounded-xl bg-slate-800/50 border border-emerald-500/30">
             <div className="text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-1">
-              Phase 1 &bull; Active
+              Phase 1 &bull; Complete
             </div>
             <div className="text-sm font-medium text-white">Project Scaffolding</div>
             <div className="text-xs text-slate-400 mt-1">Vite + React + TS, API foundation, Libs</div>
@@ -133,7 +133,7 @@ export const WelcomeCard: React.FC = () => {
 
           <div className="p-4 rounded-xl bg-slate-800/30 border border-slate-800">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-              Phase 2
+              Phase 2 &bull; Complete
             </div>
             <div className="text-sm font-medium text-slate-200">Database & RLS</div>
             <div className="text-xs text-slate-400 mt-1">Supabase SQL migrations, Schema, Triggers</div>
@@ -141,7 +141,7 @@ export const WelcomeCard: React.FC = () => {
 
           <div className="p-4 rounded-xl bg-slate-800/30 border border-slate-800">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-              Phase 3
+              Phase 3 &bull; Complete
             </div>
             <div className="text-sm font-medium text-slate-200">Supabase Auth</div>
             <div className="text-xs text-slate-400 mt-1">Sign-up, Login, Session Management, Guards</div>
@@ -149,7 +149,7 @@ export const WelcomeCard: React.FC = () => {
 
           <div className="p-4 rounded-xl bg-slate-800/30 border border-slate-800">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-              Phase 4 & 5
+              Next Milestones
             </div>
             <div className="text-sm font-medium text-slate-200">Portfolios & Analytics</div>
             <div className="text-xs text-slate-400 mt-1">Holdings, Transactions, Recharts dashboard</div>
