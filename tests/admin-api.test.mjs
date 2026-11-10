@@ -134,3 +134,161 @@ test('admin endpoint sends an invitation and returns a JSON success response', a
     globalThis.fetch = originalFetch;
   }
 });
+
+test('admin endpoint returns 403 when profile lookup query fails', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = new URL(typeof input === 'string' ? input : input.url);
+    if (url.pathname === '/auth/v1/user') {
+      return Response.json({
+        id: 'admin-user-id',
+        aud: 'authenticated',
+        role: 'authenticated',
+        email: 'admin@example.test',
+        app_metadata: { provider: 'email', providers: ['email'] },
+        user_metadata: {},
+        created_at: '2026-01-01T00:00:00.000Z',
+      });
+    }
+    if (url.pathname === '/rest/v1/profiles') {
+      throw new Error('Database connection failed');
+    }
+    throw new Error(`Unexpected Supabase request: ${url.pathname}`);
+  };
+
+  try {
+    const response = createResponse();
+    await adminUsersHandler(
+      {
+        method: 'POST',
+        headers: { authorization: 'Bearer test-admin-token' },
+        body: { action: 'change-password', targetUserId: 'target-user-id', newPassword: 'Password1' },
+      },
+      response
+    );
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.body.error, 'Forbidden: Unable to verify administrator profile.');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('admin endpoint returns 403 when admin profile not found', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = new URL(typeof input === 'string' ? input : input.url);
+    if (url.pathname === '/auth/v1/user') {
+      return Response.json({
+        id: 'admin-user-id',
+        aud: 'authenticated',
+        role: 'authenticated',
+        email: 'admin@example.test',
+        app_metadata: { provider: 'email', providers: ['email'] },
+        user_metadata: {},
+        created_at: '2026-01-01T00:00:00.000Z',
+      });
+    }
+    if (url.pathname === '/rest/v1/profiles') {
+      return Response.json([], { headers: { 'Content-Type': 'application/json' } });
+    }
+    throw new Error(`Unexpected Supabase request: ${url.pathname}`);
+  };
+
+  try {
+    const response = createResponse();
+    await adminUsersHandler(
+      {
+        method: 'POST',
+        headers: { authorization: 'Bearer test-admin-token' },
+        body: { action: 'change-password', targetUserId: 'target-user-id', newPassword: 'Password1' },
+      },
+      response
+    );
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.body.error, 'Forbidden: Admin profile not found.');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('admin endpoint returns 403 when profile role is not admin', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = new URL(typeof input === 'string' ? input : input.url);
+    if (url.pathname === '/auth/v1/user') {
+      return Response.json({
+        id: 'admin-user-id',
+        aud: 'authenticated',
+        role: 'authenticated',
+        email: 'admin@example.test',
+        app_metadata: { provider: 'email', providers: ['email'] },
+        user_metadata: {},
+        created_at: '2026-01-01T00:00:00.000Z',
+      });
+    }
+    if (url.pathname === '/rest/v1/profiles') {
+      return Response.json(
+        { id: 'admin-user-id', role: 'user', is_active: true },
+        { headers: { 'Content-Type': 'application/vnd.pgrst.object+json' } }
+      );
+    }
+    throw new Error(`Unexpected Supabase request: ${url.pathname}`);
+  };
+
+  try {
+    const response = createResponse();
+    await adminUsersHandler(
+      {
+        method: 'POST',
+        headers: { authorization: 'Bearer test-admin-token' },
+        body: { action: 'change-password', targetUserId: 'target-user-id', newPassword: 'Password1' },
+      },
+      response
+    );
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.body.error, 'Forbidden: Administrator role is required.');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('admin endpoint returns 403 when profile account is deactivated', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = new URL(typeof input === 'string' ? input : input.url);
+    if (url.pathname === '/auth/v1/user') {
+      return Response.json({
+        id: 'admin-user-id',
+        aud: 'authenticated',
+        role: 'authenticated',
+        email: 'admin@example.test',
+        app_metadata: { provider: 'email', providers: ['email'] },
+        user_metadata: {},
+        created_at: '2026-01-01T00:00:00.000Z',
+      });
+    }
+    if (url.pathname === '/rest/v1/profiles') {
+      return Response.json(
+        { id: 'admin-user-id', role: 'admin', is_active: false },
+        { headers: { 'Content-Type': 'application/vnd.pgrst.object+json' } }
+      );
+    }
+    throw new Error(`Unexpected Supabase request: ${url.pathname}`);
+  };
+
+  try {
+    const response = createResponse();
+    await adminUsersHandler(
+      {
+        method: 'POST',
+        headers: { authorization: 'Bearer test-admin-token' },
+        body: { action: 'change-password', targetUserId: 'target-user-id', newPassword: 'Password1' },
+      },
+      response
+    );
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.body.error, 'Forbidden: Account is deactivated.');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

@@ -51,10 +51,26 @@ async function handleAdminRequest(req: VercelRequest, res: VercelResponse) {
     .from('profiles')
     .select('id, role, is_active')
     .eq('id', callerUserId)
-    .single();
+    .maybeSingle();
 
-  if (profileError || !callerProfile || callerProfile.role !== 'admin' || !callerProfile.is_active) {
-    return res.status(403).json({ error: 'Forbidden: Active administrator privileges are required.' });
+  if (profileError) {
+    console.error('[api/admin/users] Profile lookup failed:', {
+      errorCode: profileError.code ?? null,
+      message: profileError.message,
+    });
+    return res.status(403).json({ error: 'Forbidden: Unable to verify administrator profile.' });
+  }
+
+  if (!callerProfile) {
+    return res.status(403).json({ error: 'Forbidden: Admin profile not found.' });
+  }
+
+  if (callerProfile.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden: Administrator role is required.' });
+  }
+
+  if (!callerProfile.is_active) {
+    return res.status(403).json({ error: 'Forbidden: Account is deactivated.' });
   }
 
   const { action } = req.body ?? {};
