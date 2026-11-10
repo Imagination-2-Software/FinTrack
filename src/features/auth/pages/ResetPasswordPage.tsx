@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodV4Resolver } from '@/lib/zodResolver';
 import { useNavigate, Link } from 'react-router-dom';
 import { Lock, TrendingUp, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -20,7 +20,7 @@ export const ResetPasswordPage: React.FC = () => {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<ResetPasswordFormData>({
-    resolver: zodResolver(resetPasswordSchema),
+    resolver: zodV4Resolver(resetPasswordSchema),
     defaultValues: {
       password: '',
       confirmPassword: '',

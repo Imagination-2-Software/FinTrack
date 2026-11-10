@@ -2,15 +2,35 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '';
+function resolveEnvVar(...candidates: (string | undefined)[]): string {
+  for (const candidate of candidates) {
+    if (candidate) {
+      const trimmed = candidate.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+  }
+  return '';
+}
+
+const supabaseUrl = resolveEnvVar(
+  process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_URL
+);
+const serviceRoleKey = resolveEnvVar(
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
+  process.env.SUPABASE_SERVICE_KEY
+);
 const emailSchema = z.string().trim().email().max(255);
 const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
-const anonKey =
-  process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  process.env.VITE_SUPABASE_ANON_KEY ||
-  process.env.SUPABASE_ANON_KEY ||
-  '';
+const anonKey = resolveEnvVar(
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+  process.env.VITE_SUPABASE_ANON_KEY,
+  process.env.SUPABASE_ANON_KEY
+);
+
+export { resolveEnvVar };
 
 async function handleAdminRequest(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Cache-Control', 'no-store');

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodV4Resolver } from '@/lib/zodResolver';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Mail, Lock, TrendingUp } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,7 +22,7 @@ export const LoginPage: React.FC = () => {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
+    resolver: zodV4Resolver(loginSchema),
     defaultValues: {
       email: '',
       password: '',

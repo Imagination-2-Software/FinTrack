@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { zodV4Resolver } from '@/lib/zodResolver';
 import { Link } from 'react-router-dom';
 import { Mail, TrendingUp, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,7 +19,7 @@ export const ForgotPasswordPage: React.FC = () => {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<ForgotPasswordFormData>({
-    resolver: zodResolver(forgotPasswordSchema),
+    resolver: zodV4Resolver(forgotPasswordSchema),
     defaultValues: {
       email: '',
     },
