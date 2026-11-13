@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { AlertCircle, Eye, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { AlertCircle, Eye, Pencil, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import type { DisplayCurrency, InvestmentRow } from '@/types';
+import type { AssetType, DisplayCurrency, InvestmentRow } from '@/types';
 import { useInvestmentMutations, useInvestments } from './hooks';
 import { calculateInvestment, formatMoney, formatQuantity } from './format';
 import type { InvestmentFormValues } from './schemas';
@@ -53,7 +53,18 @@ export const InvestmentsPage: React.FC = () => {
   const [dialog, setDialog] = useState<InvestmentDialog>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | AssetType>('ALL');
   const investments = query.data ?? [];
+
+  const filteredInvestments = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return investments.filter((inv) => {
+      if (typeFilter !== 'ALL' && inv.asset_type !== typeFilter) return false;
+      if (term && !`${inv.asset_name} ${inv.symbol}`.toLowerCase().includes(term)) return false;
+      return true;
+    });
+  }, [investments, search, typeFilter]);
 
   const submitInvestment = async (values: InvestmentFormValues) => {
     if (!dialog || dialog.type === 'view' || dialog.type === 'delete') return;
@@ -128,9 +139,34 @@ export const InvestmentsPage: React.FC = () => {
             })}
           </div>
 
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search holdings by name or symbol..."
+                className="w-full rounded-xl border border-slate-800 bg-slate-900/90 py-2 pl-9 pr-3 text-xs text-slate-200 placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500/50"
+              />
+            </div>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value as 'ALL' | AssetType)}
+              className="rounded-xl border border-slate-800 bg-slate-900/90 px-3 py-2 text-xs text-slate-200 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500/50"
+            >
+              <option value="ALL">All Asset Classes</option>
+              <option value="Stocks">Stocks</option>
+              <option value="Mutual Funds">Mutual Funds</option>
+              <option value="ETFs">ETFs</option>
+              <option value="Commodities">Commodities</option>
+              <option value="Cryptocurrency">Cryptocurrency</option>
+            </select>
+          </div>
+
           <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-4 py-3">
-              <h2 className="text-sm font-semibold text-white">Holdings</h2>
+              <h2 className="text-sm font-semibold text-white">Holdings ({filteredInvestments.length})</h2>
               <span className="text-xs text-slate-500">{profile?.display_currency ?? 'USD'} preference does not convert asset currencies</span>
             </div>
             <div className="overflow-x-auto">
@@ -139,7 +175,7 @@ export const InvestmentsPage: React.FC = () => {
                   <th className="px-4 py-3 font-medium">Asset</th><th className="px-4 py-3 font-medium">Quantity</th><th className="px-4 py-3 font-medium">Purchase</th><th className="px-4 py-3 font-medium">Current price</th><th className="px-4 py-3 font-medium">Invested</th><th className="px-4 py-3 font-medium">Current value</th><th className="px-4 py-3 font-medium">P&amp;L</th><th className="px-4 py-3 text-right font-medium">Actions</th>
                 </tr></thead>
                 <tbody className="divide-y divide-slate-800/80">
-                  {investments.map((investment) => {
+                  {filteredInvestments.map((investment) => {
                     const values = calculateInvestment(investment);
                     const positive = values.profitLoss >= 0;
                     return <tr key={investment.id} className="transition hover:bg-slate-900/80">

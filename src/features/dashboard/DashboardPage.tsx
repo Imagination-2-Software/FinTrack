@@ -1,113 +1,115 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowDownRight, ArrowUpRight, ArrowUpRightFromSquare, BriefcaseBusiness, Clock3, LogOut, RefreshCw, Wallet } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import {
+  BriefcaseBusiness,
+  ArrowUpRightFromSquare,
+  LogOut,
+  RefreshCw,
+  Wallet,
+  Plus,
+} from 'lucide-react';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { StatCard } from '@/components/ui/StatCard';
 import { useAuth } from '@/hooks/useAuth';
-import type { AssetType, DisplayCurrency, InvestmentRow, TransactionRow } from '@/types';
+import type { DisplayCurrency, InvestmentRow } from '@/types';
 import { useInvestments, useTransactions } from '@/features/investments/hooks';
-import { calculateInvestment, formatMoney, formatQuantity } from '@/features/investments/format';
+import { calculateInvestment } from '@/features/investments/format';
 
-interface CurrencySummary {
-  currency: DisplayCurrency;
-  investments: InvestmentRow[];
-  invested: number;
-  current: number;
-  profitLoss: number;
-  profitLossPercentage: number | null;
-  todayProfitLoss: number | null;
-  todayProfitLossPercentage: number | null;
-  baselinePending: boolean;
-  previousCloseValue: number;
-}
+import { OverviewCards, type OverviewSummaryData } from './components/OverviewCards';
+import { PerformanceChart } from './components/PerformanceChart';
+import { AllocationDonut } from './components/AllocationDonut';
+import { PortfolioHealthCard } from './components/PortfolioHealthCard';
+import { PerformersCard } from './components/PerformersCard';
+import { HoldingsTable } from './components/HoldingsTable';
+import { RecentTransactionsCard } from './components/RecentTransactionsCard';
+import { GoalsAndInsights } from './components/GoalsAndInsights';
 
-const allocationColors = ['#2dd4bf', '#60a5fa', '#f59e0b', '#a78bfa', '#fb7185'];
+function computeCurrencySummary(
+  investments: InvestmentRow[],
+  currency: DisplayCurrency
+): OverviewSummaryData {
+  const items = investments.filter((i) => i.currency === currency && Number(i.quantity) > 0);
 
-function summarizeByCurrency(investments: InvestmentRow[]): CurrencySummary[] {
-  const grouped = new Map<DisplayCurrency, InvestmentRow[]>();
-  investments.forEach((investment) => {
-    const items = grouped.get(investment.currency) ?? [];
-    items.push(investment);
-    grouped.set(investment.currency, items);
-  });
+  const invested = items.reduce(
+    (total, inv) => total + calculateInvestment(inv).investedValue,
+    0
+  );
+  const current = items.reduce(
+    (total, inv) => total + calculateInvestment(inv).currentValue,
+    0
+  );
+  const profitLoss = current - invested;
+  const profitLossPercentage = invested > 0 ? (profitLoss / invested) * 100 : null;
 
-  return [...grouped.entries()].map(([currency, items]) => {
-    const invested = items.reduce(
-      (total, investment) => total + calculateInvestment(investment).investedValue,
-      0
-    );
-    const current = items.reduce(
-      (total, investment) => total + calculateInvestment(investment).currentValue,
-      0
-    );
-    const profitLoss = current - invested;
-    const hasValidBaseline = (investment: InvestmentRow) =>
-      investment.previous_close_price !== null
-      && Number.isFinite(Number(investment.previous_close_price))
-      && Number(investment.previous_close_price) >= 0;
-    const positionsNeedingBaseline = items.filter(
-      (investment) => Number(investment.quantity) > 0 && !hasValidBaseline(investment)
-    );
-    const baselinePending = positionsNeedingBaseline.length > 0;
-    const previousCloseValue = items.reduce((total, investment) => {
-      if (!hasValidBaseline(investment)) return total;
-      return total + Number(investment.quantity) * Number(investment.previous_close_price);
-    }, 0);
-    const todayProfitLoss = baselinePending ? null : current - previousCloseValue;
+  const hasValidBaseline = (inv: InvestmentRow) =>
+    inv.previous_close_price !== null &&
+    Number.isFinite(Number(inv.previous_close_price)) &&
+    Number(inv.previous_close_price) >= 0;
 
-    return {
-      currency,
-      investments: items,
-      invested,
-      current,
-      profitLoss,
-      profitLossPercentage: invested === 0 ? null : profitLoss / invested * 100,
-      todayProfitLoss,
-      todayProfitLossPercentage:
-        todayProfitLoss === null || previousCloseValue === 0
-          ? null
-          : todayProfitLoss / previousCloseValue * 100,
-      baselinePending,
-      previousCloseValue,
-    };
-  }).sort((first, second) => first.currency.localeCompare(second.currency));
-}
+  const positionsNeedingBaseline = items.filter((inv) => !hasValidBaseline(inv));
+  const baselinePending = positionsNeedingBaseline.length > 0;
 
-function getAllocation(investments: InvestmentRow[]) {
-  const byType = new Map<AssetType, number>();
-  investments.forEach((investment) => {
-    const value = calculateInvestment(investment).currentValue;
-    byType.set(investment.asset_type, (byType.get(investment.asset_type) ?? 0) + value);
-  });
-  const total = [...byType.values()].reduce((sum, value) => sum + value, 0);
-  return [...byType.entries()].map(([assetType, value]) => ({
-    assetType,
-    value,
-    percentage: total === 0 ? 0 : value / total * 100,
-  }));
-}
+  const previousCloseValue = items.reduce((total, inv) => {
+    if (!hasValidBaseline(inv)) return total;
+    return total + Number(inv.quantity) * Number(inv.previous_close_price);
+  }, 0);
 
-function formatTransactionAmount(transaction: TransactionRow): string {
-  return transaction.currency
-    ? formatMoney(Number(transaction.total_amount), transaction.currency)
-    : `${Number(transaction.total_amount).toLocaleString()} (currency unavailable)`;
+  const todayProfitLoss = baselinePending ? null : current - previousCloseValue;
+  const todayProfitLossPercentage =
+    todayProfitLoss === null || previousCloseValue === 0
+      ? null
+      : (todayProfitLoss / previousCloseValue) * 100;
+
+  return {
+    currency,
+    invested,
+    current,
+    profitLoss,
+    profitLossPercentage,
+    todayProfitLoss,
+    todayProfitLossPercentage,
+    baselinePending,
+    totalPositions: items.length,
+  };
 }
 
 export const DashboardPage: React.FC = () => {
-  const { profile, signOut } = useAuth();
+  const { profile, user, signOut } = useAuth();
   const navigate = useNavigate();
   const investmentsQuery = useInvestments();
   const transactionsQuery = useTransactions();
+
   const investments = investmentsQuery.data ?? [];
   const transactions = transactionsQuery.data ?? [];
-  const currencySummaries = summarizeByCurrency(investments);
+
+  // Determine available currencies from holdings, fallback to profile preference
+  const availableCurrencies = useMemo(() => {
+    const set = new Set<DisplayCurrency>();
+    investments.forEach((inv) => set.add(inv.currency));
+    if (set.size === 0) {
+      set.add(profile?.display_currency || 'USD');
+    }
+    return Array.from(set).sort();
+  }, [investments, profile?.display_currency]);
+
+  const [activeCurrency, setActiveCurrency] = useState<DisplayCurrency>(
+    profile?.display_currency || 'USD'
+  );
+
+  // Sync activeCurrency if availableCurrencies changes and current isn't in it
+  const currentEffectiveCurrency = availableCurrencies.includes(activeCurrency)
+    ? activeCurrency
+    : availableCurrencies[0];
+
+  const summary = useMemo(
+    () => computeCurrencySummary(investments, currentEffectiveCurrency),
+    [investments, currentEffectiveCurrency]
+  );
+
   const isLoading = investmentsQuery.isLoading || transactionsQuery.isLoading;
   const hasError = investmentsQuery.isError || transactionsQuery.isError;
-  const recentTransactions = transactions.slice(0, 6);
 
   const handleSignOut = async () => {
     await signOut();
@@ -121,196 +123,174 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <section className="space-y-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      {/* Top Header Bar */}
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800/80 pb-6">
         <div>
-          <p className="text-sm text-slate-400">Welcome{profile?.full_name ? `, ${profile.full_name}` : ''}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-white">Portfolio dashboard</h1>
+          <p className="text-xs font-semibold uppercase tracking-wider text-brand-400">
+            Portfolio Intelligence
+          </p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            {profile?.full_name ? `${profile.full_name}'s Portfolio` : 'Executive Dashboard'}
+          </h1>
+          <p className="mt-1 text-xs text-slate-400">
+            Real-time portfolio valuation, risk concentration, and asset allocation
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Link to="/investments" className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-slate-800">
-            <BriefcaseBusiness className="h-4 w-4" /> Investments
+
+        {/* Currency Switcher & Quick Actions */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Currency Toggle Tabs */}
+          {availableCurrencies.length > 1 && (
+            <div className="flex items-center rounded-xl border border-slate-800 bg-slate-900/90 p-1">
+              {availableCurrencies.map((curr) => (
+                <button
+                  key={curr}
+                  type="button"
+                  onClick={() => setActiveCurrency(curr)}
+                  className={`rounded-lg px-3 py-1.5 font-mono text-xs font-bold transition-all ${
+                    currentEffectiveCurrency === curr
+                      ? 'bg-brand-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {curr}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <Link
+            to="/investments"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700/80 bg-slate-800/70 px-3.5 py-2 text-xs font-semibold text-slate-200 shadow-sm backdrop-blur-sm transition hover:border-slate-600 hover:bg-slate-700 hover:text-white"
+          >
+            <BriefcaseBusiness className="h-3.5 w-3.5 text-brand-400" />
+            <span>Investments</span>
           </Link>
-          <Link to="/transactions" className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-500">
-            <ArrowUpRightFromSquare className="h-4 w-4" /> Transactions
+
+          <Link
+            to="/transactions"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2 text-xs font-semibold text-white shadow-lg shadow-brand-600/20 transition hover:bg-brand-500"
+          >
+            <ArrowUpRightFromSquare className="h-3.5 w-3.5" />
+            <span>Ledger</span>
           </Link>
-          <Button variant="outline" leftIcon={<LogOut className="h-4 w-4" />} onClick={handleSignOut}>Sign out</Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            leftIcon={<LogOut className="h-3.5 w-3.5" />}
+            onClick={handleSignOut}
+          >
+            Sign out
+          </Button>
         </div>
       </header>
 
+      {/* Loading Skeleton */}
       {isLoading ? (
-        <div className="space-y-5" aria-label="Loading portfolio dashboard">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[1, 2, 3, 4].map((item) => <Skeleton key={item} className="h-32 w-full" />)}</div>
-          <div className="grid gap-5 xl:grid-cols-2"><Skeleton className="h-80 w-full" /><Skeleton className="h-80 w-full" /></div>
-          <Skeleton className="h-72 w-full" />
+        <div className="space-y-6" aria-label="Loading dashboard metrics">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-32 w-full rounded-2xl" />
+            ))}
+          </div>
+          <div className="grid gap-5 lg:grid-cols-2">
+            <Skeleton className="h-80 w-full rounded-2xl" />
+            <Skeleton className="h-80 w-full rounded-2xl" />
+          </div>
+          <Skeleton className="h-72 w-full rounded-2xl" />
         </div>
       ) : hasError ? (
-        <Alert type="error" title="Portfolio data could not be loaded">
-          <p>{investmentsQuery.error instanceof Error ? investmentsQuery.error.message : transactionsQuery.error instanceof Error ? transactionsQuery.error.message : 'Please retry.'}</p>
-          <Button className="mt-4" size="sm" variant="outline" leftIcon={<RefreshCw className="h-4 w-4" />} onClick={retryQueries}>Retry</Button>
+        <Alert type="error" title="Portfolio Data Unavailable">
+          <p>
+            {investmentsQuery.error instanceof Error
+              ? investmentsQuery.error.message
+              : transactionsQuery.error instanceof Error
+              ? transactionsQuery.error.message
+              : 'Unable to communicate with the database. Please verify your credentials and network connection.'}
+          </p>
+          <Button
+            className="mt-4"
+            size="sm"
+            variant="outline"
+            leftIcon={<RefreshCw className="h-4 w-4" />}
+            onClick={retryQueries}
+          >
+            Retry Query
+          </Button>
         </Alert>
       ) : investments.length === 0 ? (
-        <>
-          <EmptyState icon={<Wallet className="h-6 w-6" />} title="No portfolio holdings yet" description="Add a holding to see portfolio values, allocation, and performance based on your recorded prices." action={<Link to="/investments" className="text-sm font-semibold text-brand-400 hover:text-brand-300">Add a holding</Link>} />
-          <RecentTransactions transactions={recentTransactions} />
-        </>
+        /* Empty Portfolio State */
+        <div className="space-y-8">
+          <EmptyState
+            icon={<Wallet className="h-8 w-8 text-brand-400" />}
+            title="Your Investment Portfolio is Empty"
+            description="Start building your portfolio by recording your first holding. FinTrack tracks your recorded prices, performance trajectories, and diversification metrics."
+            action={
+              <Link
+                to="/investments"
+                className="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-brand-600/20 transition hover:bg-brand-500"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Your First Holding</span>
+              </Link>
+            }
+          />
+          <RecentTransactionsCard transactions={transactions} currency={currentEffectiveCurrency} />
+        </div>
       ) : (
-        <>
-          {currencySummaries.map((summary) => (
-            <section key={summary.currency} className="space-y-4" aria-label={`${summary.currency} portfolio summary`}>
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <h2 className="text-sm font-semibold uppercase text-slate-300">{summary.currency} portfolio</h2>
-                <Link to="/investments" className="text-xs font-medium text-brand-400 hover:text-brand-300">View holdings</Link>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <StatCard title="Total investment" value={formatMoney(summary.invested, summary.currency)} icon={<Wallet className="h-4 w-4" />} tooltip="Recorded quantity × average purchase price" />
-                <StatCard title="Current portfolio value" value={formatMoney(summary.current, summary.currency)} icon={<BriefcaseBusiness className="h-4 w-4" />} tooltip="Recorded quantity × current price" />
-                <StatCard title="Total P&L" value={formatMoney(summary.profitLoss, summary.currency)} changePercentage={summary.profitLossPercentage} icon={summary.profitLoss >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />} />
-                <StatCard title="Today's P&L" value={summary.todayProfitLoss === null ? 'N/A' : formatMoney(summary.todayProfitLoss, summary.currency)} changePercentage={summary.todayProfitLossPercentage} baselinePending={summary.baselinePending} baselineNote="Previous-close baseline unavailable" icon={<Clock3 className="h-4 w-4" />} tooltip="Compared with stored previous-close prices" />
-              </div>
-            </section>
-          ))}
+        /* Main Dashboard Content */
+        <div className="space-y-7">
+          {/* Section A: Overview Cards */}
+          <OverviewCards summary={summary} />
 
-          <div className="grid gap-5 xl:grid-cols-2">
-            <PerformanceCharts summaries={currencySummaries} />
-            <AllocationCharts summaries={currencySummaries} />
+          {/* Section B & C: Performance Chart & Asset Allocation */}
+          <div className="grid gap-5 lg:grid-cols-[1.25fr_1fr]">
+            <PerformanceChart
+              investments={investments}
+              transactions={transactions}
+              currency={currentEffectiveCurrency}
+            />
+            <AllocationDonut
+              investments={investments}
+              currency={currentEffectiveCurrency}
+            />
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-2">
-            <Performers investments={investments} />
-            <RecentTransactions transactions={recentTransactions} />
+          {/* Section D & E: Portfolio Health & Top/Worst Performers */}
+          <div className="grid gap-5 lg:grid-cols-2">
+            <PortfolioHealthCard
+              investments={investments}
+              currency={currentEffectiveCurrency}
+            />
+            <PerformersCard
+              investments={investments}
+              currency={currentEffectiveCurrency}
+            />
           </div>
-        </>
+
+          {/* Section F: Holdings Overview (Search, Sort, Filter) */}
+          <HoldingsTable
+            investments={investments}
+            currency={currentEffectiveCurrency}
+          />
+
+          {/* Section G & H: Recent Transactions & Goals / Smart Insights */}
+          <div className="grid gap-5 lg:grid-cols-[1fr_1.3fr]">
+            <RecentTransactionsCard
+              transactions={transactions}
+              currency={currentEffectiveCurrency}
+            />
+            <GoalsAndInsights
+              investments={investments}
+              transactions={transactions}
+              currency={currentEffectiveCurrency}
+              currentValue={summary.current}
+              userId={user?.id}
+            />
+          </div>
+        </div>
       )}
     </section>
   );
 };
-
-const PerformanceCharts: React.FC<{ summaries: CurrencySummary[] }> = ({ summaries }) => (
-  <section className="space-y-4" aria-labelledby="portfolio-performance-title">
-    <div>
-      <h2 id="portfolio-performance-title" className="text-lg font-semibold text-white">Portfolio value snapshot</h2>
-      <p className="mt-1 text-xs text-slate-500">Recorded cost basis versus current value. Historical valuation data is not available in the current schema.</p>
-    </div>
-    {summaries.map((summary) => (
-      <div key={summary.currency} className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-        <h3 className="mb-3 text-xs font-semibold uppercase text-slate-400">{summary.currency}</h3>
-        <div className="h-64 w-full" role="img" aria-label={`${summary.currency} invested and current values by holding`}>
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={summary.investments.map((investment) => ({
-              symbol: investment.symbol,
-              invested: calculateInvestment(investment).investedValue,
-              current: calculateInvestment(investment).currentValue,
-            }))} margin={{ top: 8, right: 12, bottom: 8, left: 8 }}>
-              <CartesianGrid stroke="#263244" strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="symbol" stroke="#94a3b8" tickLine={false} axisLine={false} />
-              <YAxis stroke="#94a3b8" tickLine={false} axisLine={false} tickFormatter={(value) => Number(value).toLocaleString()} width={68} />
-              <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8 }} formatter={(value) => formatMoney(Number(value), summary.currency)} />
-              <Legend />
-              <Bar dataKey="invested" name="Invested" fill="#60a5fa" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="current" name="Current value" fill="#2dd4bf" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-    ))}
-  </section>
-);
-
-const AllocationCharts: React.FC<{ summaries: CurrencySummary[] }> = ({ summaries }) => (
-  <section className="space-y-4" aria-labelledby="asset-allocation-title">
-    <div>
-      <h2 id="asset-allocation-title" className="text-lg font-semibold text-white">Asset allocation</h2>
-      <p className="mt-1 text-xs text-slate-500">Current value by asset type, kept separate by currency.</p>
-    </div>
-    {summaries.map((summary) => {
-      const allocation = getAllocation(summary.investments).filter((item) => item.value > 0);
-      return (
-        <div key={summary.currency} className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-          <h3 className="mb-3 text-xs font-semibold uppercase text-slate-400">{summary.currency}</h3>
-          {allocation.length === 0 ? <p className="py-16 text-center text-sm text-slate-500">No positive current values to allocate.</p> : (
-            <div className="grid items-center gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(130px,0.8fr)]">
-              <div className="h-60 min-w-0" role="img" aria-label={`${summary.currency} asset allocation by type`}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={allocation} dataKey="value" nameKey="assetType" innerRadius="55%" outerRadius="82%" paddingAngle={2}>
-                      {allocation.map((item, index) => <Cell key={item.assetType} fill={allocationColors[index % allocationColors.length]} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8 }} formatter={(value) => formatMoney(Number(value), summary.currency)} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <ul className="space-y-2">
-                {allocation.map((item, index) => <li key={item.assetType} className="flex items-start justify-between gap-3 text-xs">
-                  <span className="flex min-w-0 items-center gap-2 text-slate-400"><span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: allocationColors[index % allocationColors.length] }} /><span className="truncate">{item.assetType}</span></span>
-                  <span className="shrink-0 text-right text-slate-200">{item.percentage.toFixed(1)}%<br />{formatMoney(item.value, summary.currency)}</span>
-                </li>)}
-              </ul>
-            </div>
-          )}
-        </div>
-      );
-    })}
-  </section>
-);
-
-const Performers: React.FC<{ investments: InvestmentRow[] }> = ({ investments }) => {
-  const ranked = investments
-    .map((investment) => ({ investment, performance: calculateInvestment(investment) }))
-    .filter((item) => item.performance.profitLossPercentage !== null)
-    .sort((first, second) => (second.performance.profitLossPercentage ?? 0) - (first.performance.profitLossPercentage ?? 0));
-  const best = ranked.filter((item) => (item.performance.profitLossPercentage ?? 0) > 0).slice(0, 3);
-  const worst = [...ranked].reverse().filter((item) => (item.performance.profitLossPercentage ?? 0) < 0).slice(0, 3);
-
-  return (
-    <section className="space-y-4" aria-labelledby="performers-title">
-      <div>
-        <h2 id="performers-title" className="text-lg font-semibold text-white">Holding performance</h2>
-        <p className="mt-1 text-xs text-slate-500">Ranked by recorded gain or loss percentage.</p>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <PerformerList title="Top performers" items={best} positive />
-        <PerformerList title="Needs attention" items={worst} positive={false} />
-      </div>
-    </section>
-  );
-};
-
-interface PerformerItem {
-  investment: InvestmentRow;
-  performance: ReturnType<typeof calculateInvestment>;
-}
-
-const PerformerList: React.FC<{ title: string; items: PerformerItem[]; positive: boolean }> = ({ title, items, positive }) => (
-  <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-    <h3 className="mb-3 text-xs font-semibold uppercase text-slate-400">{title}</h3>
-    {items.length === 0 ? <p className="py-5 text-sm text-slate-500">No holdings in this group.</p> : (
-      <ul className="divide-y divide-slate-800">
-        {items.map(({ investment, performance }) => <li key={investment.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-          <div className="min-w-0"><p className="truncate text-sm font-medium text-white">{investment.asset_name}</p><p className="text-xs text-slate-500">{investment.symbol} · {investment.currency}</p></div>
-          <div className={`shrink-0 text-right text-sm font-semibold ${positive ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {performance.profitLossPercentage?.toFixed(2)}%<p className="text-xs font-normal">{formatMoney(performance.profitLoss, investment.currency)}</p>
-          </div>
-        </li>)}
-      </ul>
-    )}
-  </div>
-);
-
-const RecentTransactions: React.FC<{ transactions: TransactionRow[] }> = ({ transactions }) => (
-  <section className="space-y-4" aria-labelledby="recent-transactions-title">
-    <div className="flex items-center justify-between gap-3">
-      <div><h2 id="recent-transactions-title" className="text-lg font-semibold text-white">Recent transactions</h2><p className="mt-1 text-xs text-slate-500">Latest ledger entries across your account.</p></div>
-      <Link to="/transactions" className="shrink-0 text-xs font-medium text-brand-400 hover:text-brand-300">View all</Link>
-    </div>
-    {transactions.length === 0 ? <EmptyState title="No transactions yet" description="Recorded BUY and SELL entries will appear here." action={<Link to="/transactions" className="text-sm font-semibold text-brand-400 hover:text-brand-300">Record a transaction</Link>} /> : (
-      <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/50">
-        <ul className="divide-y divide-slate-800">
-          {transactions.map((transaction) => <li key={transaction.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-            <div className="min-w-0"><p className="truncate text-sm font-medium text-white">{transaction.asset_name} <span className="text-xs text-slate-500">{transaction.asset_symbol}</span></p><p className="mt-1 text-xs text-slate-500">{transaction.transaction_date} · {formatQuantity(Number(transaction.quantity))} · {transaction.transaction_type}</p></div>
-            <span className="shrink-0 font-mono text-sm text-slate-200">{formatTransactionAmount(transaction)}</span>
-          </li>)}
-        </ul>
-      </div>
-    )}
-  </section>
-);
